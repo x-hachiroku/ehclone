@@ -1,0 +1,157 @@
+{
+  "log": {
+    "console_level": "INFO",
+    "file_level": "WARNING",
+    "dir": "/appdata/logs"
+  },
+
+  "db": {
+    "url": "postgresql+psycopg2://pguser:pgpass@localhost:5432/ehclone"
+  },
+
+  "eh": {
+    "base_url": "https://e-hentai.org",
+    "proxy": "http://host.containers.internal:9000",
+    "cookies": {
+      "ipb_member_id": "",
+      "ipb_pass_hash": "",
+      "igneous": "",
+      "star": ""
+    },
+    "categories": [
+      "Doujinshi",
+      "Manga"
+    ],
+    "keywords": [
+      "female:lolicon$",
+      "-other:\"ai generated\"$"
+    ],
+    "include_expunged": true,
+    "extra_args": {
+      "disable_uploader_filter": true,
+      "disable_tags_filter": true
+    },
+    "min_request_interval": 5,
+    "torrent_key": null
+  },
+
+
+  "filter": {
+    "not_before": 3600,
+    "min_rating": 0,
+    "dedupe": {
+      "enabled": true,
+      "thumb_dir": "/thumbnails",
+      "page_tolerance": 8,
+      "cosine_threshold": 0.1,
+      "rating_factor": 1,
+      "page_count_factor": 5,
+      "expunged_tags": [
+        "other:already uploaded",
+        "other:defaced",
+        "other:replaced",
+        "other:compilation",
+        "other:incomplete",
+        "other:missing cover",
+        "other:out of order",
+        "other:sample",
+        "other:scanmark",
+        "other:watermarked"
+      ],
+      "expunged_bias": -100,
+      "tag_biases": {
+        "other:rough translation": -30,
+        "other:extraneous ads":    -20,
+        "other:full censorship":   -20,
+        "other:mosaic censorship": -20,
+        "other:uncensored":         50
+      }
+    }
+  },
+
+  "aria2": {
+    "url": "http://host.containers.internal:7000/jsonrpc",
+    "token": null,
+    "remote_dir": "/home/user/containers/ehclone/appdata/aria2/downloads",
+    "local_dir": "/appdata/aria2/downloads",
+    "poll_interval": 10,
+    "task_limit": 128
+  },
+
+  "qbit": {
+    "enabled": true,
+    "url": "http://host.containers.internal:7500",
+    "username": "admin",
+    "password": "adminadmin",
+    "category": "eh",
+    "remote_dir": "/downloads/eh",
+    "local_dir": "/qbit",
+    "task_limit": 1024,
+    "timeout_hours": 168
+  },
+
+  "archiver": {
+    "poll_interval_hours": 24,
+    "not_before_hours": 168,
+    "cmd": [
+      "rar",
+      "a",
+      "-ep",
+      "-s",
+      "-htb",
+      "-k",
+      "-m5",
+      "-md512m",
+      "-qo",
+      "-rr3p",
+      "-t",
+      "%dst",
+      "%src"
+    ],
+    "blacklist": {
+      "sha1": [
+        "01dad42290",
+        "01dad42290",
+        "0b4d8e734d",
+        "0e95dcf6cd",
+        "1d9aefbf4c",
+        "2365e471ae",
+        "23bdc5c97f",
+        "2833793934",
+        "4232276d9c",
+        "67b7501e0c",
+        "6a0f373efa",
+        "6cba5b77b5",
+        "85429736c9",
+        "861eb2a1dd",
+        "8972dc25bf",
+        "92017e855c",
+        "9420e777bb",
+        "a8264d75d1",
+        "a8bad2c85a",
+        "b81d1ebc32",
+        "cd21b67920",
+        "d31e80f9a9",
+        "dcfd9ec54b",
+        "e3985d90e6",
+        "f9498d6543"
+      ],
+      "qr": [
+        "17mimei",
+        "17nana",
+        "69run",
+        "aifun",
+        "gdl0ve",
+        "hyenadata",
+        "mijppa",
+        "bli2acg",
+        "jm-3x",
+        "mdaa11",
+        "nnnna",
+        "ntxqy",
+        "sego",
+        "taobao"
+      ]
+    }
+  }
+}

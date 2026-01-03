@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ehclone"
+version = "0.1.0"
+description = "Synchronize Telegram messages and media to local storage."
+requires-python = ">=3.13"
+license = "MIT"
+authors = [
+    { name = "x-hachiroku", email = "gh.x86@yukimura.moe" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "loguru>=0.7.0",
+    "sqlalchemy>=1.4.0",
+    "psycopg2-binary>=2.8.0",
+    "pgvector>=0.4",
+    "sqlalchemy-utils>=0.40.0",
+    "requests>=2.0.0",
+    "bs4",
+    "lxml",
+    "tabulate",
+    "imagededup",
+    "qbittorrent-api",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ehclone"]
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+ehclone = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ehclone",
+]
+
+[project.urls]
+Homepage = "https://github.com/x-hachiroku/ehclone"
