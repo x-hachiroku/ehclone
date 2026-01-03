@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ehclone"
+version = "0.1.0"
+description = "Synchronize, deduplicate, and archive E-Hentai galleries."
+requires-python = ">=3.14"
+license = "MIT"
+authors = [
+    { name = "x-hachiroku", email = "gh.x86@yukimura.moe" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "loguru>=0.7.0",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.8.0",
+    "pgvector>=0.4",
+    "sqlalchemy-utils>=0.40.0",
+    "requests>=2.0.0",
+    "beautifulsoup4",
+    "lxml",
+    "numpy",
+    "imagededup",
+    "qbittorrent-api",
+    "torch",
+    "torchvision",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ehclone"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+    "/uv.lock",
+    "/Dockerfile",
+    "/.dockerignore",
+    "/appdata/config.example.json",
+    "/appdata/aria2.conf",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }
+torchvision = { index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[project.urls]
+Homepage = "https://github.com/x-hachiroku/ehclone"
