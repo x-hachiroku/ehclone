@@ -1,2 +1,5 @@
 appdata/*
 !appdata/config.example.json
+!appdata/aria2/
+appdata/aria2/*
+!appdata/aria2/aria2.conf

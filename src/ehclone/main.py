@@ -6,6 +6,7 @@ from ehclone.logger import logger
 from ehclone.db.entities import Base
 from ehclone.db.session import engine
 from ehclone.core.sync_index import sync_index
+from ehclone.core.sync_thumbs import sync_thumbs
 
 
 if __name__ == '__main__':
@@ -17,3 +18,4 @@ if __name__ == '__main__':
     Base.metadata.create_all(engine)
 
     sync_index()
+    sync_thumbs()
