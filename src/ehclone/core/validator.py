@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString, Tag
+from PIL import Image, ImageSequence
+import zxingcpp
 
 from ehclone.config import config
 from ehclone.core.session import ehs
@@ -169,6 +171,19 @@ def _extract(source: Path, raw: Path) -> None:
         logger.debug(result.stdout)
         _reject_symlinks(raw)
 
+def _decode_qr(image: Path) -> set[str]:
+    """Decode unique, casefolded QR texts across all animation frames."""
+    decoded = set()
+    with Image.open(image) as opened:
+        for frame in ImageSequence.Iterator(opened):
+            decoded.update(code.text.casefold() for code in zxingcpp.read_barcodes(
+                frame.convert('RGB'),
+                formats=zxingcpp.BarcodeFormat.QRCode,
+                text_mode=zxingcpp.TextMode.Plain,
+            ))
+    return decoded
+
+
 def validate(gid: int, token: str, source: Path) -> bool:
     """Return False for incomplete/corrupt downloads; raise on operational errors.
     """
@@ -218,6 +233,7 @@ def validate(gid: int, token: str, source: Path) -> bool:
         pages.mkdir()
         out_of_order = 'other:out of order' in tags
         blacklisted = {checksum.lower()[:10] for checksum in config.archiver.blacklist.sha1}
+        qr_keywords = {keyword.casefold() for keyword in config.archiver.blacklist.qr}
         used = set()
         for index, checksum in enumerate(checksums, 1):
             if checksum in blacklisted:
@@ -225,6 +241,17 @@ def validate(gid: int, token: str, source: Path) -> bool:
             images = local[checksum]
             image = next((image for image in images if image not in used), images[0])
             used.add(image)
+            if qr_keywords:
+                try:
+                    decoded = _decode_qr(image)
+                except (OSError, ValueError):
+                    log.exception('QR scan failed for {}', image.relative_to(raw))
+                    return False
+                matches = [text for text in decoded if any(keyword in text for keyword in qr_keywords)]
+                for text in matches:
+                    log.warning('Filtered {}: blacklisted QR code: {}', image.relative_to(raw), text)
+                if matches:
+                    continue
             name = '_'.join(image.relative_to(raw).parts) if out_of_order else f'{index:04d}{image.suffix}'
             target = pages / name
             target.hardlink_to(image)

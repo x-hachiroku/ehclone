@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from PIL import Image
+import zxingcpp
 
 from ehclone.config import config
 from ehclone.core import validator
@@ -152,6 +154,103 @@ def test_blacklist_excludes_only_after_all_pages_are_verified(paths, monkeypatch
     assert validator.validate(123, 'token', source)
     with zipfile.ZipFile(config.dest / '2026' / '01' / 'Test title [123].cbz') as archive:
         assert set(archive.namelist()) == {'0002.jpg', 'galleryinfo.txt'}
+
+
+def qr_image(text):
+    code = zxingcpp.create_barcode(text, zxingcpp.BarcodeFormat.QRCode)
+    return Image.fromarray(code.to_image(scale=5)).convert('RGB')
+
+
+@pytest.mark.parametrize('suffix', sorted(validator.IMAGE_SUFFIXES))
+def test_decode_all_qr_codes(tmp_path, suffix):
+    texts = ['https://example.org/safe', 'https://example.org/BLoCkEd']
+    codes = [qr_image(text) for text in texts]
+    canvas = Image.new('RGB', (500, 250), 'white')
+    for index, code in enumerate(codes):
+        canvas.paste(code, (index * 250 + 20, 20))
+    path = tmp_path / f'multiple{suffix}'
+    canvas.save(path)
+    assert validator._decode_qr(path) == {text.casefold() for text in texts}
+
+
+def test_decode_qr_in_later_animation_frame(tmp_path):
+    text = 'https://example.org/blocked'
+    code = qr_image(text)
+    first = Image.new('RGB', code.size, 'white')
+    path = tmp_path / 'animated.gif'
+    first.save(path, save_all=True, append_images=[qr_image(text.upper()), code],
+               duration=100, loop=0)
+    assert validator._decode_qr(path) == {text}
+
+
+@pytest.mark.parametrize('out_of_order', [False, True])
+def test_qr_blacklist_excludes_images_and_logs_decoded_text(paths, monkeypatch, out_of_order):
+    source = paths / 'torrent'
+    source.mkdir()
+    Image.new('RGB', (250, 250), 'white').save(source / 'blank.png')
+    qr_image('https://example.org/safe').save(source / 'safe.png')
+    texts = ['https://example.org/BLoCkEd', 'https://example.org/Straße']
+    canvas = Image.new('RGB', (500, 250), 'white')
+    for index, text in enumerate(texts):
+        canvas.paste(qr_image(text), (index * 250 + 20, 20))
+    canvas.save(source / 'blocked.png')
+    (source / 'sha1.jpg').write_bytes(b'sha1 blocked')
+    originals = {name: (source / name).read_bytes()
+                 for name in ['blank.png', 'safe.png', 'blocked.png', 'sha1.jpg']}
+    tags = [('other', 'out of order')] if out_of_order else []
+    mock_gallery(monkeypatch, [sha(data) for data in originals.values()], tags)
+    monkeypatch.setattr(config.archiver.blacklist, 'sha1', [sha(b'sha1 blocked')])
+    monkeypatch.setattr(config.archiver.blacklist, 'qr', ['unused', 'bLOCKed', 'STRASSE'])
+
+    def package(command, cwd, check, text, capture_output):
+        with zipfile.ZipFile(command[3], 'w') as archive:
+            for page in Path(cwd).iterdir():
+                archive.write(page, page.name)
+        return subprocess.CompletedProcess(command, 0, stdout='', stderr='')
+
+    monkeypatch.setattr(validator.subprocess, 'run', package)
+    warnings = []
+    sink = validator.logger.add(warnings.append, level='WARNING')
+    try:
+        assert validator.validate(123, 'token', source)
+    finally:
+        validator.logger.remove(sink)
+    assert len(warnings) == 2
+    for text in texts:
+        assert any(text.casefold() in message and message.record['level'].name == 'WARNING'
+                   for message in warnings)
+    with zipfile.ZipFile(config.dest / '2026' / '01' / 'Test title [123].cbz') as archive:
+        names = ['blank.png', 'safe.png'] if out_of_order else ['0001.png', '0002.png']
+        assert set(archive.namelist()) == {*names, 'galleryinfo.txt'}
+        for name, original in zip(names, list(originals.values())[:2]):
+            assert archive.read(name) == original
+    assert {name: (source / name).read_bytes() for name in originals} == originals
+
+
+def test_qr_scanning_waits_for_complete_gallery(paths, monkeypatch):
+    source = paths / 'torrent'
+    source.mkdir()
+    (source / 'page.jpg').write_bytes(b'a')
+    mock_gallery(monkeypatch, [sha(b'a'), sha(b'missing')])
+    monkeypatch.setattr(config.archiver.blacklist, 'qr', ['blocked'])
+    decode = Mock(side_effect=AssertionError('must verify completeness first'))
+    monkeypatch.setattr(validator, '_decode_qr', decode)
+    assert not validator.validate(123, 'token', source)
+    decode.assert_not_called()
+
+
+def test_unreadable_qr_image_does_not_replace_existing_archive(paths, monkeypatch):
+    source = paths / 'torrent'
+    source.mkdir()
+    (source / 'page.jpg').write_bytes(b'not an image')
+    mock_gallery(monkeypatch, [sha(b'not an image')])
+    monkeypatch.setattr(config.archiver.blacklist, 'qr', ['blocked'])
+    output = config.dest / '2026' / '01' / 'Test title [123].cbz'
+    output.parent.mkdir(parents=True)
+    output.write_bytes(b'existing archive')
+    assert not validator.validate(123, 'token', source)
+    assert output.read_bytes() == b'existing archive'
+    assert list(config.cache.iterdir()) == []
 
 
 def test_source_symlink_is_rejected_without_copying_its_target(paths, monkeypatch):

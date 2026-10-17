@@ -28,6 +28,7 @@ Configure `appdata/config.json`. At least the following keys should be set:
   - `Asian Porn`
   - `Misc`
 - `eh.torrent_key`: optional personal tracker key.
+- `archiver.blacklist`: Filter pages by sha1 and decoded qr code.
 - `filter.include_tags`: defaults to `[]` (no restriction). Downloads require
   every listed tag. Download may get supressed when the gallery is duped with
   the other gallery without the tag.

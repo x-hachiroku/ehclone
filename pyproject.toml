@@ -27,6 +27,8 @@ dependencies = [
     "beautifulsoup4",
     "lxml",
     "numpy",
+    "pillow",
+    "zxing-cpp>=3.0",
     "imagededup",
     "qbittorrent-api",
     "torch",
