@@ -3,20 +3,22 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlencode
 
 from ehclone.config import config
-from ehclone.logger import logger
+from ehclone.logger import gallery_logger, logger
 from ehclone.core.session import ehs
 from ehclone.db.crud.gallery import (
+    get_existing_gids,
     get_galleries_for_metadata_refresh,
     get_last_gid,
     insert_galleries,
 )
 
 
-def sync_page(prev, expunged=False):
+def sync_page(prev: int, expunged: bool = False, recheck_until: int | None = None) -> int:
     '''
     Get a page of galleries from EH
     :param prev: The last gallery ID from the previous page, i.e. exclusive
     :param expunged: ONLY expunged galleries when true; only not expunged when false
+    :param recheck_until: Skip stored galleries up to and including this original cursor
 
     :return: last gallery ID, -1 if no galleries found
     '''
@@ -47,28 +49,43 @@ def sync_page(prev, expunged=False):
     if not gidlist:
         return -1
 
-    _gdata = ehs.gdata(gidlist)
-    if not _gdata:
-        raise RuntimeError('Could not retrieve gallery metadata.')
-    logger.debug(f'Retrieved metadata for {len(_gdata)} galleries: {list(map(lambda x: f"{x["gid"]}/{x["token"]}", _gdata))}')
-
-    insert_galleries(_gdata)
-
     next_gid = max(gid for gid, token in gidlist)
+    recheck_gids = [gid for gid, token in gidlist
+                   if recheck_until is not None and gid <= recheck_until]
+    if recheck_gids:
+        existing_gids = get_existing_gids(recheck_gids)
+        gidlist = [[gid, token] for gid, token in gidlist
+                   if gid > recheck_until or gid not in existing_gids]
+        for gid, token in gidlist:
+            if gid <= recheck_until:
+                gallery_logger(gid, token).warning('Gallery missing from database during recheck; fetching metadata')
+
+    if gidlist:
+        _gdata = ehs.gdata(gidlist)
+        if not _gdata:
+            raise RuntimeError('Could not retrieve gallery metadata.')
+        logger.debug(f'Retrieved metadata for {len(_gdata)} galleries: {list(map(lambda x: f"{x["gid"]}/{x["token"]}", _gdata))}')
+
+        insert_galleries(_gdata)
+
     return next_gid if next_gid > prev else -1
 
 
 def run() -> None:
-    last_gid = get_last_gid(expunged=False) if config.eh.resume else 1
+    recheck = config.eh.recheck > 0
+    original_last_gid = get_last_gid(expunged=False)
+    last_gid = min(config.eh.recheck, original_last_gid) if recheck else original_last_gid
     logger.info(f'Starting sync from {last_gid}')
 
     if config.eh.include_expunged:
-        expunged_gid = get_last_gid(expunged=True) if config.eh.resume else 1
+        original_expunged_gid = get_last_gid(expunged=True)
+        expunged_gid = min(config.eh.recheck, original_expunged_gid) if recheck else original_expunged_gid
         logger.info(f'Starting expunged sync from {expunged_gid}')
 
         while True:
             logger.info(f'Syncing expunged page with prev={expunged_gid}')
-            new_gid = sync_page(expunged_gid, expunged=True)
+            new_gid = sync_page(expunged_gid, expunged=True,
+                                recheck_until=original_expunged_gid if recheck else None)
             if new_gid == -1:
                 logger.info('Expunged sync complete, no more galleries found.')
                 break
@@ -77,7 +94,8 @@ def run() -> None:
 
     while True:
         logger.info(f'Syncing page with prev={last_gid}')
-        new_gid = sync_page(last_gid, expunged=False)
+        new_gid = sync_page(last_gid, expunged=False,
+                            recheck_until=original_last_gid if recheck else None)
         if new_gid == -1:
             logger.info('Sync complete, no more galleries found.')
             break

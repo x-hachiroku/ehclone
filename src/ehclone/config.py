@@ -66,7 +66,6 @@ class EHExtraArgs(BaseModel):
 
 
 class EH(BaseModel):
-    resume: bool = True
     base_url: str = 'https://e-hentai.org'
     proxy: str | None = None
     cookies: dict[str, str] = Field(default_factory=dict)
@@ -77,6 +76,7 @@ class EH(BaseModel):
     min_request_interval: int = Field(default=5, ge=0)
     max_retry: int = Field(default=5, ge=0)
     torrent_key: str | None = None
+    recheck: int = 0
 
     _CATEGORY_ENCODINGS: ClassVar[dict[Category, int]] = {
         Category.MISC: 1,

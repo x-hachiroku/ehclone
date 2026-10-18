@@ -26,6 +26,23 @@ def session(monkeypatch):
     engine.dispose()
 
 
+def test_existing_gids_includes_placeholders_and_ignores_absent_ids(session, monkeypatch):
+    @contextmanager
+    def sessions():
+        yield session
+
+    monkeypatch.setattr(gallery, 'session_generator', sessions)
+    session.add_all([
+        Gallery(gid=1, token='a', title='Stored gallery'),
+        Gallery(gid=2, token='b'),
+        Gallery(gid=3, token='c', title='Outside the requested page'),
+    ])
+    session.commit()
+
+    assert gallery.get_existing_gids([1, 2, 4]) == {1, 2}
+    assert gallery.get_existing_gids([]) == set()
+
+
 @pytest.mark.parametrize('rating,stored', [('4.5', 450), ('4.01', 401), ('4.99', 499), ('5', 500)])
 def test_metadata_refresh_updates_utc_timestamp_but_state_changes_do_not(session, rating, stored):
     data = {

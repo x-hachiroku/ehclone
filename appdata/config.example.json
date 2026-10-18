@@ -10,7 +10,7 @@
     "url": "postgresql+psycopg2://pguser:pgpass@localhost:5432/ehclone"
   },
   "eh": {
-    "resume": true,
+    "recheck": 0,
     "base_url": "https://e-hentai.org",
     "proxy": null,
     "cookies": {

@@ -7,6 +7,11 @@ from ehclone.config import Aria2, Archiver, Config, EH, Filter, FilterDedupe, QB
 from ehclone.db.entities import Category
 
 
+def test_recheck_defaults_to_disabled_and_accepts_a_starting_gid():
+    assert EH().recheck == 0
+    assert EH(recheck=12345).recheck == 12345
+
+
 def test_empty_categories_include_every_category_and_duplicates_are_ignored():
     assert EH(categories=[]).get_f_cats() == 0
     assert EH(categories=[Category.MANGA, Category.MANGA]).get_f_cats() == 1019

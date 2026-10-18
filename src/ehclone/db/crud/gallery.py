@@ -23,6 +23,13 @@ def get_gallery_metadata(gid: int) -> Gallery | None:
         return session.get(Gallery, gid, options=[selectinload(Gallery.tags)])
 
 
+def get_existing_gids(gids: list[int]) -> set[int]:
+    """Find stored gallery IDs, including entries without metadata."""
+    with session_generator() as session:
+        rows = session.query(Gallery.gid).filter(Gallery.gid.in_(gids)).all()
+        return {gid for gid, in rows}
+
+
 def insert_gallery(session, gdata, thumb_cache, tag_cache):
     try:
         gid = int(gdata['gid'])

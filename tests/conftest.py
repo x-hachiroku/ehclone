@@ -27,5 +27,5 @@ Path(test_appdata.name, 'config.json').write_text(json.dumps({
              'remote_dir': '/remote/qbit', 'local_dir': '/local/qbit',
              'enabled': True, 'task_limit': 8, 'timeout_hours': 168},
     'log': {'dir': None},
-    'eh': {'min_request_interval': 0, 'resume': True, 'include_expunged': False},
+    'eh': {'min_request_interval': 0, 'recheck': 0, 'include_expunged': False},
 }))
