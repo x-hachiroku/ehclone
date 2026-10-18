@@ -29,6 +29,10 @@ Configure `appdata/config.json`. At least the following keys should be set:
   - `Misc`
 - `eh.torrent_key`: optional personal tracker key.
 - `archiver.blacklist`: Filter pages by sha1 and decoded qr code.
+- `filter.include_categories`: defaults to `[]` (no restriction). New downloads
+  require a category in this list, using the same names as `eh.categories`.
+  This filters download submissions independently of index searches. Excluded
+  galleries remain queued, and already submitted downloads continue to be checked.
 - `filter.include_tags`: defaults to `[]` (no restriction). Downloads require
   every listed tag. Download may get supressed when the gallery is duped with
   the other gallery without the tag.

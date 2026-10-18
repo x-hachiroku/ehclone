@@ -35,6 +35,7 @@
     "max_retry": 5
   },
   "filter": {
+    "include_categories": [],
     "include_tags": [],
     "not_before_min": 60,
     "min_rating": 0,

@@ -33,6 +33,8 @@ def iter_queued_gallery_ids() -> Iterator[int]:
     )
     if not config.eh.include_expunged:
         query = query.where(Gallery.expunged.is_not(True))
+    if config.filter.include_categories:
+        query = query.where(Gallery.category.in_(config.filter.include_categories))
     if config.filter.dedupe.enabled:
         query = query.where(
             Gallery.deduped_at.isnot(None),

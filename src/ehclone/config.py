@@ -127,6 +127,7 @@ class Filter(BaseModel):
     dedupe: FilterDedupe
     not_before_min: int = Field(default=60, ge=0)
     min_rating: float = Field(default=0, ge=0, le=5)
+    include_categories: list[Category] = Field(default_factory=list)
     include_tags: list[str] = Field(default_factory=list)
 
 

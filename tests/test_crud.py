@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ehclone.config import config
 from ehclone.db.crud import dedupe as dedupe_crud, downloads, gallery, thumb
-from ehclone.db.entities import Base, DownloadState, Gallery, Tag, Thumb
+from ehclone.db.entities import Base, Category, DownloadState, Gallery, Tag, Thumb
 
 
 @pytest.fixture
@@ -166,6 +166,30 @@ def test_download_queue_respects_expunged_config_without_changing_state(session,
     session.commit()
     monkeypatch.setattr(config.eh, 'include_expunged', False)
     assert downloads.active_gallery_ids(session) == [2]
+
+
+def test_download_categories_filter_queue_without_changing_state(session, monkeypatch):
+    for gid, category in enumerate([Category.MANGA, Category.DOUJINSHI, Category.MISC, None], 1):
+        session.add(Gallery(gid=gid, token='a', title='Title', rating=400, category=category))
+    session.commit()
+    monkeypatch.setattr(config.filter, 'include_categories',
+                        [Category.MANGA, Category.DOUJINSHI, Category.MANGA])
+    monkeypatch.setattr(config.eh, 'categories', [Category.MISC])
+    monkeypatch.setattr(downloads, 'BATCH_SIZE', 1)
+
+    assert list(downloads.iter_queued_gallery_ids()) == [1, 2]
+    assert not session.dirty and not session.new and not session.deleted
+    assert all(g.bittorrent == g.archiver == DownloadState.QUEUED
+               and g.dupe_with is None for g in session.query(Gallery))
+
+    monkeypatch.setattr(config.filter, 'include_categories', [])
+    assert list(downloads.iter_queued_gallery_ids()) == [1, 2, 3, 4]
+
+    session.get(Gallery, 3).bittorrent = DownloadState.DOWNLOADING
+    session.get(Gallery, 4).archiver = DownloadState.DOWNLOADING
+    session.commit()
+    monkeypatch.setattr(config.filter, 'include_categories', [Category.MANGA])
+    assert downloads.active_gallery_ids(session) == [4, 3]
 
 
 def test_base_candidates_use_mature_metadata_vectors_rating_and_current_winners(session, monkeypatch):

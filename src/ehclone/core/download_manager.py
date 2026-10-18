@@ -81,6 +81,8 @@ class DownloadManager:
     def _enqueue(self, gallery: Gallery, qbit_active: int, aria2_active: int) -> None:
         if gallery.expunged and not config.eh.include_expunged:
             return
+        if config.filter.include_categories and gallery.category not in config.filter.include_categories:
+            return
         if config.filter.dedupe.enabled and (
             gallery.updated_at is None or gallery.deduped_at is None
             or gallery.deduped_at < gallery.updated_at

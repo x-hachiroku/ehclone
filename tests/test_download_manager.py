@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ehclone.core import download_manager
 from ehclone.core.download_manager import DownloadManager
-from ehclone.db.entities import Base, DownloadState as State, Gallery, Tag, Torrent
+from ehclone.db.entities import Base, Category, DownloadState as State, Gallery, Tag, Torrent
 
 
 @pytest.fixture(params=['UTC0', 'UTC+7', 'UTC-8'])
@@ -269,6 +269,33 @@ def test_enqueue_respects_expunged_config(monkeypatch, include_expunged, expunge
         assert gallery.bittorrent_task_id is None
         assert gallery.bittorrent_started_at is None
         assert gallery.archiver_task_id is None
+
+
+@pytest.mark.parametrize('categories', [[], [Category.MANGA, Category.DOUJINSHI]])
+@pytest.mark.parametrize('category', [Category.MANGA, Category.DOUJINSHI, Category.MISC, None])
+@pytest.mark.parametrize('state', [State.QUEUED, State.DOWNLOAD_FAILED])
+def test_enqueue_respects_include_categories(monkeypatch, categories, category, state):
+    monkeypatch.setattr(download_manager.config.filter, 'include_categories', categories)
+    manager = DownloadManager()
+    manager.qbit = Mock()
+    manager.aria2 = Mock()
+    manager._start_archive = Mock()
+    gallery = Gallery(gid=1, token='token', rating=400, category=category,
+                      bittorrent=state, archiver=State.QUEUED)
+    gallery.torrents = [Torrent(infohash='abc')]
+
+    manager._enqueue(gallery, 0, 0)
+
+    eligible = not categories or category in categories
+    assert manager.qbit.add_torrent.called == (eligible and state == State.QUEUED)
+    assert manager._start_archive.called == (eligible and state == State.DOWNLOAD_FAILED)
+    if not eligible:
+        assert gallery.bittorrent == state
+        assert gallery.archiver == State.QUEUED
+        assert gallery.bittorrent_task_id is None
+        assert gallery.bittorrent_started_at is None
+        assert gallery.archiver_task_id is None
+        assert gallery.dupe_with is None
 
 
 @pytest.mark.parametrize('rating', [None, 400, 401, 500])
