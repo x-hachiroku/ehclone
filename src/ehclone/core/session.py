@@ -91,7 +91,20 @@ class EHSession:
         return self._request('get', url, *args, **kwargs)
 
     def get(self, path, *args, **kwargs):
-        return self._get(urljoin(self.base_url, path), *args, **kwargs)
+        url = urljoin(self.base_url, path)
+        target = urlsplit(url)
+        base = urlsplit(self.base_url)
+        if (target.scheme, target.netloc) != (base.scheme, base.netloc):
+            return self._get(url, *args, **kwargs)
+
+        while True:
+            response = self._get(url, *args, **kwargs)
+            # EH returns 200 with with content-type text/html and a plaintext for too many requests...
+            if re.search(r'<!doctype\s+html\b|<html\b', response.text, re.IGNORECASE):
+                return response
+            delay = self._retry_delay(response)
+            logger.warning(f'GET {url} returned non-HTML content. Retrying in {delay}s')
+            sleep(delay)
 
     def _post(self, url, *args, **kwargs):
         return self._request('post', url, *args, **kwargs)
@@ -119,7 +132,15 @@ class EHSession:
                 logger.error(f'GDATA post failed: {e}')
                 break
 
-            gmetadata = res.json().get('gmetadata', [])
+            try:
+                data = res.json()
+            except requests.exceptions.JSONDecodeError:
+                delay = self._retry_delay(res)
+                logger.warning(f'GDATA returned non-JSON content. Retrying in {delay}s')
+                sleep(delay)
+                continue
+
+            gmetadata = data.get('gmetadata', [])
             if not isinstance(gmetadata, list):
                 gmetadata = []
 

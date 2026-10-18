@@ -73,7 +73,7 @@ def test_skipping_wait_preserves_spacing_for_normal_requests(monkeypatch):
 
     sleep = Mock(side_effect=advance_clock)
     monkeypatch.setattr(session, 'sleep', sleep)
-    get = Mock(return_value=Mock())
+    get = Mock(return_value=make_response(200))
     monkeypatch.setattr(client.session, 'get', get)
     client.get('/gallery')
     now = 102
@@ -105,9 +105,10 @@ def test_failed_stream_response_is_closed(monkeypatch, method):
     response.close.assert_called_once()
 
 
-def make_response(status, retry_after=None):
+def make_response(status, retry_after=None, body='<html></html>'):
     response = requests.Response()
     response.status_code = status
+    response._content = body.encode()
     response.close = Mock()
     if retry_after is not None:
         response.headers['Retry-After'] = retry_after
@@ -122,6 +123,58 @@ def retry_client(monkeypatch):
     monkeypatch.setattr(client, '_wait', Mock())
     monkeypatch.setattr(session, 'sleep', Mock())
     return client
+
+
+@pytest.mark.parametrize('success_body', [
+    '<!DOCTYPE html><body>Gallery</body>',
+    '<html lang="en"><body>Gallery</body></html>',
+    '<HTML><body>Gallery</body></HTML>',
+])
+def test_plain_text_get_retries_as_rate_limit(monkeypatch, retry_client, success_body):
+    monkeypatch.setattr(config.eh, 'max_retry', 0)
+    failures = [make_response(200, retry_after='7', body='Please try again later.') for _ in range(3)]
+    success = make_response(200, body=success_body)
+    request = Mock(side_effect=[*failures, success])
+    monkeypatch.setattr(retry_client, '_get', request)
+
+    assert retry_client.get('/g/42/abc/') is success
+    assert request.call_count == 4
+    assert [call.args for call in session.sleep.call_args_list] == [(7,)] * 3
+    success.close.assert_not_called()
+
+
+@pytest.mark.parametrize('body', ['Please try again later.', '<html>Busy</html>', '{invalid json}'])
+def test_non_json_gdata_retries_as_rate_limit(monkeypatch, retry_client, body):
+    monkeypatch.setattr(config.eh, 'max_retry', 0)
+    failures = [make_response(200, retry_after='7', body=body) for _ in range(3)]
+    success = make_response(200, body='{"gmetadata": [{"gid": 42, "token": "abc"}]}')
+    post = Mock(side_effect=[*failures, success])
+    monkeypatch.setattr(retry_client, 'post', post)
+
+    assert retry_client.gdata([[42, 'abc']]) == [{'gid': 42, 'token': 'abc'}]
+    assert post.call_count == 4
+    assert all(call.args == ('/api.php',) for call in post.call_args_list)
+    assert all(call.kwargs == {'json': {
+        'method': 'gdata', 'gidlist': [[42, 'abc']], 'namespace': 1,
+    }} for call in post.call_args_list)
+    assert [call.args for call in session.sleep.call_args_list] == [(7,)] * 3
+
+
+@pytest.mark.parametrize('method,path,body', [
+    ('get', 'https://thumbs.example/image.jpg', 'image bytes'),
+    ('get', 'https://download.example/api.php', 'archive bytes'),
+    ('post', '/archiver.php', 'Insufficient funds'),
+    ('post', '/api.php', '{"error": "Invalid request"}'),
+])
+def test_other_response_content_is_returned(monkeypatch, retry_client, method, path, body):
+    response = make_response(200, body=body)
+    request = Mock(return_value=response)
+    monkeypatch.setattr(retry_client.session, method, request)
+
+    assert getattr(retry_client, method)(path) is response
+    request.assert_called_once()
+    session.sleep.assert_not_called()
+    response.close.assert_not_called()
 
 
 @pytest.mark.parametrize('method', ['get', 'post'])
