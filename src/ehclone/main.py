@@ -3,6 +3,7 @@ def main():
     from sqlalchemy import text
     from sqlalchemy_utils import create_database, database_exists
 
+    from ehclone.config import config
     from ehclone.db.entities import Base
     from ehclone.db.locking import application_lock
     from ehclone.db.session import engine
@@ -31,8 +32,9 @@ def main():
             logger.info("Deduping...")
             dedupe.run()
 
-            logger.info('Pipeline pass finished; waiting 300 seconds before the next pass')
-            sleep(300)
+            logger.info('Pipeline pass finished; waiting {} seconds before the next pass',
+                        config.pipeline_interval_seconds)
+            sleep(config.pipeline_interval_seconds)
 
 
 if __name__ == '__main__':

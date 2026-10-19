@@ -4,7 +4,8 @@
 
 - `src/ehclone/main.py` initializes PostgreSQL and runs repeated passes: download
   management, index sync, thumbnail vectorization, then deduplication. Passes wait
-  300 seconds before repeating and check downloads submitted by earlier passes.
+  `pipeline_interval_seconds` before repeating and check downloads submitted by
+  earlier passes.
 - `core/` contains orchestration, EH requests, filtering, and archive validation.
 - `db/entities.py` defines persisted models; `db/crud/` owns queries;
   `db/session.py` and `db/locking.py` manage transactions and the application lock.

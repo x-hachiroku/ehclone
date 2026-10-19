@@ -6,13 +6,15 @@ import pytest
 import sqlalchemy_utils
 
 from ehclone import main
+from ehclone.config import config
 from ehclone.core import download_manager, dedupe, sync_index, sync_thumbs
 from ehclone.db import locking, session
 from ehclone.db.entities import Base
 
 
 @pytest.mark.parametrize('acquired', [False, True])
-def test_jobs_run_only_while_application_lock_is_held(monkeypatch, acquired):
+@pytest.mark.parametrize('interval', [0, 17, 300])
+def test_jobs_run_only_while_application_lock_is_held(monkeypatch, acquired, interval):
     held = False
     jobs = []
 
@@ -41,9 +43,10 @@ def test_jobs_run_only_while_application_lock_is_held(monkeypatch, acquired):
 
     def sleep(seconds):
         assert held
-        assert seconds == 300
+        assert seconds == interval
         raise StopLoop
 
+    monkeypatch.setattr(config, 'pipeline_interval_seconds', interval)
     monkeypatch.setattr(time, 'sleep', sleep)
     monkeypatch.setattr(sqlalchemy_utils, 'database_exists', lambda url: True)
     monkeypatch.setattr(locking, 'application_lock', lock)

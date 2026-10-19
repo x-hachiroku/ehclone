@@ -1,6 +1,7 @@
 {
   "cache": "/cache",
   "dest": "/dest",
+  "pipeline_interval_seconds": 300,
   "log": {
     "console_level": "INFO",
     "file_level": "WARNING",

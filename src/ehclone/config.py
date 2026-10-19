@@ -194,6 +194,7 @@ class Archiver(BaseModel):
 class Config(BaseModel):
     cache: Path = APPDATA / 'cache'
     dest: Path = APPDATA / 'dest'
+    pipeline_interval_seconds: int = Field(default=300, ge=0)
     db: DB
     filter: Filter
     aria2: Aria2
