@@ -19,6 +19,7 @@ def iter_unvectorized_thumb_batches() -> Iterator[list[str]]:
                 .join(Thumb, Gallery.thumb_url == Thumb.url)
                 .filter(
                     Thumb.mobile_net_v3.is_(None),
+                    Thumb.not_found.is_(False),
                     Gallery.rating * 0.01 >= config.filter.min_rating,
                 )
             )
@@ -41,3 +42,10 @@ def update_thumb_vector(url, vector):
         thumb = session.get(Thumb, url)
         if thumb:
             thumb.mobile_net_v3 = vector
+
+
+def mark_thumb_not_found(url: str) -> None:
+    with session_generator() as session:
+        thumb = session.get(Thumb, url)
+        if thumb:
+            thumb.not_found = True

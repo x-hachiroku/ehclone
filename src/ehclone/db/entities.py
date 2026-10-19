@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     ForeignKey,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import relationship, declarative_base
 from pgvector.sqlalchemy import Vector
@@ -107,6 +108,7 @@ class Thumb(Base):
 
     url = Column(String, primary_key=True)
     mobile_net_v3 = Column(Vector(576))
+    not_found = Column(Boolean, nullable=False, default=False, server_default=false())
 
     galleries = relationship('Gallery', back_populates='thumb')
 

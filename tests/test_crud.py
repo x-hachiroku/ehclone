@@ -353,6 +353,67 @@ def test_thumbnail_paging_filters_tags_and_skips_vectors_completed_on_prior_page
     assert [call.args[0] for call in download.call_args_list] == ['broken']
 
 
+def test_thumbnail_404_survives_later_pages_passes_and_metadata_refresh(session, monkeypatch):
+    from unittest.mock import Mock
+    import requests
+    from ehclone.core import sync_thumbs
+
+    monkeypatch.setattr(thumb, 'BATCH_SIZE', 1)
+    data = dict(token='a', title='Title', rating='4', posted='1767225600',
+                category='Manga', filecount='10', filesize='100', thumb='missing')
+    for gid in (1, 2):
+        gallery.insert_gallery(session, data | {'gid': gid}, {}, {})
+    session.commit()
+    response = requests.Response()
+    response.status_code = 404
+    download = Mock(side_effect=requests.HTTPError(response=response))
+    monkeypatch.setattr(sync_thumbs, 'download_thumb', download)
+    encode = Mock()
+    monkeypatch.setattr(sync_thumbs, 'update_encode', encode)
+
+    sync_thumbs.run()
+    session.commit()
+    session.expunge_all()
+    assert session.get(Thumb, 'missing').not_found is True
+    # Both existing and newly ingested references retain the URL's failure.
+    for gid in (1, 3):
+        gallery.insert_gallery(session, data | {'gid': gid}, {}, {})
+    session.commit()
+    sync_thumbs.run()
+    download.assert_called_once_with('missing')
+    encode.assert_not_called()
+    assert all(item.thumb_url == 'missing' for item in session.query(Gallery))
+
+    gallery.insert_gallery(session, data | {'gid': 1, 'thumb': 'replacement'}, {}, {})
+    session.commit()
+    assert session.get(Thumb, 'replacement').not_found is False
+    assert list(thumb.iter_unvectorized_thumb_batches()) == [['replacement']]
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_missing_thumbs_exclude_dedupe_and_new_downloads_but_keep_active_work(session, monkeypatch, enabled):
+    monkeypatch.setattr(config.filter.dedupe, 'enabled', enabled)
+    # Even an existing vector or dedupe marker cannot override a recorded 404.
+    missing = Thumb(url='missing', not_found=True, mobile_net_v3=[1.] * 576)
+    good = Thumb(url='good', mobile_net_v3=[1.] * 576)
+    for gid, image, state in [
+        (1, missing, DownloadState.QUEUED),
+        (2, missing, DownloadState.QUEUED),
+        (3, good, DownloadState.QUEUED),
+        (4, None, DownloadState.QUEUED),
+        (5, missing, DownloadState.DOWNLOADING),
+    ]:
+        session.add(Gallery(
+            gid=gid, token='a', title='Title', rating=400, filecount=10, thumb=image,
+            updated_at=datetime(2020, 1, 2), deduped_at=datetime(2020, 1, 1), archiver=state,
+        ))
+    session.commit()
+
+    assert list(dedupe_crud.iter_base_candidates()) == [(3, 'a')]
+    assert list(downloads.iter_queued_gallery_ids()) == [3, 4]
+    assert downloads.active_gallery_ids(session) == [5]
+
+
 def test_download_paging_survives_state_changes_failures_and_stops_when_full(session, monkeypatch):
     from unittest.mock import Mock
     from ehclone.core import download_manager

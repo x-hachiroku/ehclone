@@ -21,6 +21,7 @@ def build_base_query(session):
         Gallery.title.isnot(None),
         Gallery.filecount.isnot(None),
         Thumb.mobile_net_v3.isnot(None),
+        Thumb.not_found.is_(False),
         Gallery.rating * 0.01 >= config.filter.min_rating,
         Gallery.updated_at.isnot(None),
         Gallery.dupe_with.is_(None),

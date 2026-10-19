@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from sqlalchemy import func, select
 
 from ehclone.config import config
-from ehclone.db.entities import DownloadState as State, Gallery, Tag
+from ehclone.db.entities import DownloadState as State, Gallery, Tag, Thumb
 from ehclone.db.session import session_generator
 
 
@@ -30,6 +30,7 @@ def iter_queued_gallery_ids() -> Iterator[int]:
         Gallery.rating * 0.01 >= config.filter.min_rating,
         Gallery.bittorrent.notin_([State.COMPLETED, State.DOWNLOADING]),
         Gallery.archiver == State.QUEUED,
+        ~Gallery.thumb.has(Thumb.not_found.is_(True)),
     )
     if not config.eh.include_expunged:
         query = query.where(Gallery.expunged.is_not(True))

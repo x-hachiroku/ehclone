@@ -3,9 +3,15 @@
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from requests import HTTPError
+
 from ehclone.config import config
 from ehclone.core.session import ehs
-from ehclone.db.crud.thumb import iter_unvectorized_thumb_batches, update_thumb_vector
+from ehclone.db.crud.thumb import (
+    iter_unvectorized_thumb_batches,
+    mark_thumb_not_found,
+    update_thumb_vector,
+)
 from ehclone.logger import logger
 from ehclone.vectorizer.mobile_net_v3 import get_vectorizer
 
@@ -52,7 +58,14 @@ def run() -> None:
         successes = 0
         for url in thumb_urls:
             try:
-                image_bytes = download_thumb(url)
+                try:
+                    image_bytes = download_thumb(url)
+                except HTTPError as exc:
+                    if exc.response is None or exc.response.status_code != 404:
+                        raise
+                    mark_thumb_not_found(url)
+                    logger.warning('Thumbnail not found; skipping future work for {}', url)
+                    continue
                 if update_encode(url, image_bytes):
                     successes += 1
             except Exception:
