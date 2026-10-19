@@ -32,6 +32,13 @@ def test_minimum_rating_uses_stars_and_accepts_hundredths():
             Filter(dedupe={}, min_rating=rating)
 
 
+def test_exclude_tags_default_to_empty_and_accept_tag_strings():
+    assert Filter(dedupe={}).exclude_tags == []
+    assert Filter(dedupe={}, exclude_tags=['other:sample', 'draft']).exclude_tags == [
+        'other:sample', 'draft',
+    ]
+
+
 def test_dedupe_page_tolerance_defaults():
     dedupe = FilterDedupe()
     assert dedupe.page_tolerance == 4
@@ -46,6 +53,8 @@ def test_dedupe_page_tolerance_defaults():
     (Filter, {'dedupe': {}, 'include_categories': [1]}),
     (Filter, {'dedupe': {}, 'include_tags': 'language:english'}),
     (Filter, {'dedupe': {}, 'include_tags': [1]}),
+    (Filter, {'dedupe': {}, 'exclude_tags': 'other:sample'}),
+    (Filter, {'dedupe': {}, 'exclude_tags': [1]}),
     (Filter, {'dedupe': {}, 'not_before_min': -1}),
     (Filter, {'dedupe': {'candidate_limit': 0}}),
     (Filter, {'dedupe': {'page_tolerance': -1}}),

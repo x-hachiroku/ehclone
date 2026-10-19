@@ -90,11 +90,15 @@ class DownloadManager:
             return
         if gallery.rating is None or gallery.rating * 0.01 < config.filter.min_rating:
             return
-        if config.filter.include_tags:
+        if config.filter.include_tags or config.filter.exclude_tags:
             tags = {(tag.namespace, tag.name) for tag in gallery.tags}
             for tag_string in config.filter.include_tags:
                 tag = Tag.from_str(tag_string)
                 if (tag.namespace, tag.name) not in tags:
+                    return
+            for tag_string in config.filter.exclude_tags:
+                tag = Tag.from_str(tag_string)
+                if (tag.namespace, tag.name) in tags:
                     return
         if gallery.bittorrent == State.QUEUED:
             if not config.qbit.enabled or not gallery.torrents:

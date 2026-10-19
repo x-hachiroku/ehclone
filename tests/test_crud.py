@@ -257,6 +257,41 @@ def test_include_tags_requires_all_tags_without_changing_stored_state(session, m
     assert downloads.active_gallery_ids(session) == [4]
 
 
+def test_exclude_tags_filters_queue_without_changing_stored_state(session, monkeypatch):
+    sample = Tag.from_str('other:sample')
+    incomplete = Tag.from_str('other:incomplete')
+    english = Tag.from_str('language:english')
+    for gid, tags in enumerate([
+        [sample], [], [incomplete], [sample, incomplete],
+        [Tag.from_str('temp:sample')], [Tag.from_str('other:Sample')],
+        [Tag.from_str('other:sample extra')], [english],
+    ], 1):
+        session.add(Gallery(gid=gid, token='a', title='Title', rating=400, tags=tags))
+    session.commit()
+    monkeypatch.setattr(downloads, 'BATCH_SIZE', 1)
+    monkeypatch.setattr(config.filter, 'exclude_tags', ['other:sample', 'other:incomplete'])
+
+    assert list(downloads.iter_queued_gallery_ids()) == [2, 5, 6, 7, 8]
+    assert not session.dirty and not session.new and not session.deleted
+    assert all(g.bittorrent == g.archiver == DownloadState.QUEUED
+               and g.dupe_with is None for g in session.query(Gallery))
+
+    monkeypatch.setattr(config.filter, 'include_tags', ['language:english'])
+    assert list(downloads.iter_queued_gallery_ids()) == [8]
+    monkeypatch.setattr(config.filter, 'include_tags', [])
+    monkeypatch.setattr(config.filter, 'exclude_tags', ['sample'])
+    assert list(downloads.iter_queued_gallery_ids()) == [1, 2, 3, 4, 6, 7, 8]
+    monkeypatch.setattr(config.filter, 'exclude_tags', [])
+    assert list(downloads.iter_queued_gallery_ids()) == list(range(1, 9))
+
+    # Exclusions must not prevent status checks for either download backend.
+    session.get(Gallery, 1).bittorrent = DownloadState.DOWNLOADING
+    session.get(Gallery, 3).archiver = DownloadState.DOWNLOADING
+    session.commit()
+    monkeypatch.setattr(config.filter, 'exclude_tags', ['other:sample', 'other:incomplete'])
+    assert downloads.active_gallery_ids(session) == [3, 1]
+
+
 def test_recursive_redirection_preserves_metadata_timestamps(session):
     timestamp = datetime(2026, 1, 1)
     for gid, target in [(1, None), (2, None), (3, 1), (4, 3), (5, 2), (6, None)]:

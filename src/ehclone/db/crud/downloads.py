@@ -45,6 +45,11 @@ def iter_queued_gallery_ids() -> Iterator[int]:
         query = query.where(Gallery.tags.any(
             (Tag.namespace == tag.namespace) & (Tag.name == tag.name)
         ))
+    for tag_string in config.filter.exclude_tags:
+        tag = Tag.from_str(tag_string)
+        query = query.where(~Gallery.tags.any(
+            (Tag.namespace == tag.namespace) & (Tag.name == tag.name)
+        ))
     after_gid = None
     while True:
         page = query

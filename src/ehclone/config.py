@@ -129,6 +129,7 @@ class Filter(BaseModel):
     min_rating: float = Field(default=0, ge=0, le=5)
     include_categories: list[Category] = Field(default_factory=list)
     include_tags: list[str] = Field(default_factory=list)
+    exclude_tags: list[str] = Field(default_factory=list)
 
 
 class Aria2(BaseModel):

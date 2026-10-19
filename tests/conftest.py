@@ -13,6 +13,7 @@ Path(test_appdata.name, 'config.json').write_text(json.dumps({
     'db': {'url': 'postgresql+psycopg2://localhost/ehclone_test'},
     'filter': {
         'min_rating': 0, 'not_before_min': 60, 'include_categories': [], 'include_tags': [],
+        'exclude_tags': [],
         'dedupe': {
             'thumb_dir': test_appdata.name, 'enabled': False,
             'candidate_limit': 16, 'page_tolerance': 8, 'distance_threshold': 0.05,

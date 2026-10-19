@@ -38,6 +38,7 @@
   "filter": {
     "include_categories": [],
     "include_tags": [],
+    "exclude_tags": [],
     "not_before_min": 60,
     "min_rating": 0,
     "dedupe": {

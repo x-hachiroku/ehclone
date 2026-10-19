@@ -35,7 +35,11 @@ Configure `appdata/config.json`. At least the following keys should be set:
   galleries remain queued, and already submitted downloads continue to be checked.
 - `filter.include_tags`: defaults to `[]` (no restriction). Downloads require
   every listed tag. Download may get supressed when the gallery is duped with
-  the other gallery without the tag.
+  the other gallery without the tag. use exact `namespace:name` matches; tags
+  without a namespace use `temp`.
+- `filter.exclude_tags`: defaults to `[]` (no exclusions). New downloads are
+  skipped if any listed tag matches. Excluded galleries remain queued, and
+  submitted downloads continue to be checked.
 - `filter.not_before_min`: Gallery age in minutes before metadata is considered
   stable. Deduplication can run immediately afterward.
   Galleries first fetched after this age do not need a scheduled refresh.

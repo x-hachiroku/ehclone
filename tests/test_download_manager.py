@@ -350,6 +350,46 @@ def test_enqueue_requires_all_include_tags_without_marking_skipped_galleries(
         assert gallery.dupe_with is None
 
 
+@pytest.mark.parametrize('exclude_tags,tags,eligible', [
+    ([], ['other:sample'], True),
+    (['other:sample', 'other:incomplete'], [], True),
+    (['other:sample', 'other:incomplete'], ['other:sample'], False),
+    (['other:sample', 'other:incomplete'], ['other:incomplete'], False),
+    (['other:sample', 'other:incomplete'], ['other:sample', 'other:incomplete'], False),
+    (['other:sample'], ['temp:sample'], True),
+    (['other:sample'], ['other:Sample'], True),
+    (['other:sample'], ['other:sample extra'], True),
+    (['sample'], ['temp:sample'], False),
+    (['sample'], ['other:sample'], True),
+])
+@pytest.mark.parametrize('include_tags', [[], ['language:english']])
+@pytest.mark.parametrize('state', [State.QUEUED, State.DOWNLOAD_FAILED])
+def test_enqueue_excludes_any_matching_tag_without_marking_skipped_galleries(
+        monkeypatch, exclude_tags, tags, eligible, include_tags, state):
+    monkeypatch.setattr(download_manager.config.filter, 'include_tags', include_tags)
+    monkeypatch.setattr(download_manager.config.filter, 'exclude_tags', exclude_tags)
+    manager = DownloadManager()
+    manager.qbit = Mock()
+    manager.aria2 = Mock()
+    manager._start_archive = Mock()
+    gallery = Gallery(gid=1, token='token', rating=400, bittorrent=state,
+                      archiver=State.QUEUED)
+    gallery.tags = [Tag.from_str(tag) for tag in ['language:english', *tags]]
+    gallery.torrents = [Torrent(infohash='abc')]
+
+    manager._enqueue(gallery, 0, 0)
+
+    assert manager.qbit.add_torrent.called == (eligible and state == State.QUEUED)
+    assert manager._start_archive.called == (eligible and state == State.DOWNLOAD_FAILED)
+    if not eligible:
+        assert gallery.bittorrent == state
+        assert gallery.archiver == State.QUEUED
+        assert gallery.bittorrent_task_id is None
+        assert gallery.bittorrent_started_at is None
+        assert gallery.archiver_task_id is None
+        assert gallery.dupe_with is None
+
+
 def test_source_cleanup_failure_retries_without_revalidating(tmp_path, monkeypatch):
     monkeypatch.setattr(download_manager.config.aria2, 'local_dir', tmp_path)
     source = tmp_path / '1_token.cbz'
