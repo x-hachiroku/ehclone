@@ -139,7 +139,7 @@ def _gallery_info(gid: int, token: str):
     comments = soup.select_one('#comment_0')
     if comments:
         info.extend(["\nUploader's Comments:\n", soup_to_text(comments, ehs)])
-    info.append(f'Downloaded by E-Hentai archiver from {config.eh.base_url}{gallery_base_path}\n')
+    info.append(f'\n\nDownloaded by E-Hentai archiver from {config.eh.base_url}{gallery_base_path}\n')
     info = '\n'.join(info)
     return title, tags, pages, info, gallery.posted_at
 
