@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -184,6 +185,22 @@ def _decode_qr(image: Path) -> set[str]:
     return decoded
 
 
+def safe_move(output: Path, destination: Path) -> None:
+    """Make sure the archive is synced before marking as complete"""
+    with output.open('rb') as stream:
+        os.fsync(stream.fileno())
+    output.replace(destination)
+
+    # Sync existing ancestors too:
+    # https://man7.org/linux/man-pages/man2/fsync.2.htm
+    for directory in destination.parents:
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
 def validate(gid: int, token: str, source: Path) -> bool:
     """Return False for incomplete/corrupt downloads; raise on operational errors.
     """
@@ -281,6 +298,6 @@ def validate(gid: int, token: str, source: Path) -> bool:
                 log.error(exc.stderr)
                 raise
             log.debug(result.stdout)
-            output.replace(destination)
+            safe_move(output, destination)
     log.info('Archived {} to {}', title, destination)
     return True

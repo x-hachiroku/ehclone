@@ -1,5 +1,7 @@
 import hashlib
+import os
 import shutil
+import stat
 import subprocess
 import zipfile
 from datetime import datetime, timezone
@@ -141,6 +143,112 @@ def test_archiver_failure_does_not_replace_previous_destination(paths, monkeypat
     assert list(output.parent.iterdir()) == [output]
     assert list(config.cache.iterdir()) == []
     assert (source / 'page.jpg').read_bytes() == b'a'
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_archive_is_synced_before_publication_and_directory_chain_after(
+        paths, monkeypatch, existing):
+    source = paths / 'torrent'
+    source.mkdir()
+    (source / 'page.jpg').write_bytes(b'a')
+    mock_gallery(monkeypatch, [sha(b'a')])
+    destination = config.dest / '2026' / '01' / 'Test title [123].cbz'
+    if existing:
+        destination.parent.mkdir(parents=True)
+        destination.write_bytes(b'old archive')
+
+    def package(command, **kwargs):
+        Path(command[3]).write_bytes(b'new archive')
+        return subprocess.CompletedProcess(command, 0, stdout='', stderr='')
+
+    synced = []
+    real_fsync = os.fsync
+
+    def sync(fd):
+        status = os.fstat(fd)
+        if stat.S_ISREG(status.st_mode):
+            assert not synced
+            assert os.read(fd, 100) == b'new archive'
+            if existing:
+                assert destination.read_bytes() == b'old archive'
+            else:
+                assert not destination.exists()
+        else:
+            assert synced
+            assert destination.read_bytes() == b'new archive'
+        real_fsync(fd)
+        synced.append((status.st_dev, status.st_ino))
+
+    monkeypatch.setattr(validator.subprocess, 'run', package)
+    monkeypatch.setattr(validator.os, 'fsync', sync)
+    assert validator.validate(123, 'token', source)
+    expected = [destination, *destination.parents]
+    assert synced == [(path.stat().st_dev, path.stat().st_ino) for path in expected]
+
+
+@pytest.mark.skipif(shutil.which('7z') is None, reason='7z is required')
+@pytest.mark.parametrize('backend', ['aria2', 'qbit'])
+@pytest.mark.parametrize('failure', ['file', 'month', 'year', 'destination_parent'])
+def test_sync_failure_preserves_download_for_retry(paths, monkeypatch, backend, failure):
+    local = paths / backend
+    local.mkdir()
+    monkeypatch.setattr(getattr(config, backend), 'local_dir', local)
+    source = local / '123_token.cbz'
+    gallery = Gallery(gid=123, token='token')
+    manager = DownloadManager()
+    manager.aria2 = Mock()
+    manager.qbit = Mock()
+    if backend == 'qbit':
+        source = local / '123_token' / 'original.cbz'
+        source.parent.mkdir()
+        gallery.bittorrent = State.DOWNLOADING
+        gallery.bittorrent_task_id = 'abc'
+        manager.qbit.get_torrents_info.return_value = [SimpleNamespace(hash='abc', progress=1)]
+        manager.qbit.matches_directory.return_value = True
+    else:
+        gallery.archiver = State.DOWNLOADING
+        gallery.archiver_task_id = 'abc'
+        manager.aria2.get_status.return_value = {'status': 'complete'}
+    with zipfile.ZipFile(source, 'w') as archive:
+        archive.writestr('page.jpg', b'a')
+    original = source.read_bytes()
+    mock_gallery(monkeypatch, [sha(b'a')])
+    destination = config.dest / '2026' / '01' / 'Test title [123].cbz'
+    failed_directory = {
+        'month': destination.parent,
+        'year': destination.parent.parent,
+        'destination_parent': config.dest.parent,
+    }.get(failure)
+    real_fsync = os.fsync
+
+    def fail_sync(fd):
+        status = os.fstat(fd)
+        if ((failure == 'file' and stat.S_ISREG(status.st_mode))
+                or (failed_directory is not None
+                    and os.path.samestat(status, failed_directory.stat()))):
+            raise OSError('Simulated sync failure')
+        real_fsync(fd)
+
+    monkeypatch.setattr(validator.os, 'fsync', fail_sync)
+    with pytest.raises(OSError, match='Simulated sync failure'):
+        manager._check(gallery)
+    state_field = 'bittorrent' if backend == 'qbit' else 'archiver'
+    assert getattr(gallery, state_field) == State.DOWNLOADING
+    manager._cleanup_archive(gallery)
+    assert source.read_bytes() == original
+    manager.aria2.remove_result.assert_not_called()
+    manager.qbit.delete_torrents.assert_not_called()
+
+    # Retry with the directories left by the failed attempt already present.
+    retry_sync = Mock(wraps=real_fsync)
+    monkeypatch.setattr(validator.os, 'fsync', retry_sync)
+    manager._check(gallery)
+    assert retry_sync.call_count == 1 + len(destination.parents)
+    assert getattr(gallery, state_field) == State.COMPLETED
+    with zipfile.ZipFile(destination) as archive:
+        assert archive.read('0001.jpg') == b'a'
+    manager._cleanup_archive(gallery)
+    assert source.exists() == (backend == 'qbit')
 
 
 @pytest.mark.skipif(shutil.which('7z') is None, reason='7z is required')
