@@ -347,18 +347,14 @@ def test_qr_scanning_waits_for_complete_gallery(paths, monkeypatch):
     decode.assert_not_called()
 
 
-def test_unreadable_qr_image_does_not_replace_existing_archive(paths, monkeypatch):
+def test_unreadable_qr_image_treated_as_no_qr(paths, monkeypatch):
+    """QR decode errors should be treated as no QR, not abort the build."""
     source = paths / 'torrent'
     source.mkdir()
     (source / 'page.jpg').write_bytes(b'not an image')
     mock_gallery(monkeypatch, [sha(b'not an image')])
     monkeypatch.setattr(config.archiver.blacklist, 'qr', ['blocked'])
-    output = config.dest / '2026' / '01' / 'Test title [123].cbz'
-    output.parent.mkdir(parents=True)
-    output.write_bytes(b'existing archive')
-    assert not validator.validate(123, 'token', source)
-    assert output.read_bytes() == b'existing archive'
-    assert list(config.cache.iterdir()) == []
+    assert validator.validate(123, 'token', source)
 
 
 def test_source_symlink_is_rejected_without_copying_its_target(paths, monkeypatch):

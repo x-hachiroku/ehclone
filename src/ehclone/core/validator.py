@@ -263,7 +263,7 @@ def validate(gid: int, token: str, source: Path) -> bool:
                     decoded = _decode_qr(image)
                 except (OSError, ValueError):
                     log.exception('QR scan failed for {}', image.relative_to(raw))
-                    return False
+                    decoded = set()
                 matches = [text for text in decoded if any(keyword in text for keyword in qr_keywords)]
                 for text in matches:
                     log.warning('Filtered {}: blacklisted QR code: {}', image.relative_to(raw), text)
