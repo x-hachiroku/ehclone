@@ -69,6 +69,10 @@ def normalize_filename(name):
     safename = re.sub(r'(\s+)', ' ', safename)
     safename = re.sub(r'\-\-+', 'ー', safename)
     safename = safename.replace(' .', '.')
+    safename = safename.replace('[ (', '[(')
+    safename = safename.replace(') ]', ')]')
+    safename = safename.replace('( [', '([')
+    safename = safename.replace('] )', '])')
 
     safename = safename.strip(' .')
 

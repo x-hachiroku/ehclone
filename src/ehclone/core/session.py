@@ -1,4 +1,5 @@
 import re
+import html
 from datetime import timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
@@ -148,7 +149,8 @@ class EHSession:
                 gid = d.get('gid')
                 token = d.get('token')
                 if gid and token and token == giddict.get(gid):
-                    results.append(d)
+                    _d = { k: html.unescape(v) for k, v in d.items() }
+                    results.append(_d)
                     del giddict[gid]
                 else:
                     gallery_logger(gid, token).error('GDATA response missing or invalid')
